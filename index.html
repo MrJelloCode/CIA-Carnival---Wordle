@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CIA's CARNIVAL — Wordle</title>
+  <style>
+    :root{
+      --bg:#0b0710; /* near-black */
+      --panel:#0f0b15;
+      --muted:#9b89a8;
+      --accent:#7c4dff; /* bright purple */
+      --accent-2:#b07bff; /* lighter purple */
+      --correct:#2ea07a; /* green-ish for correct */
+      --present:#d6a900; /* gold for present */
+      --absent:#17121a; /* dark tile */
+      --glass: rgba(255,255,255,0.03);
+      --glass-2: rgba(255,255,255,0.02);
+      --tile-size: 64px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;min-height:100%;
+      background: radial-gradient(1200px 600px at 10% 20%, rgba(124,77,255,0.12), transparent),
+                  radial-gradient(900px 500px at 90% 80%, rgba(176,123,255,0.08), transparent),
+                  linear-gradient(180deg,var(--bg),#050308);
+      color:#eee;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      display:flex;align-items:center;justify-content:center;padding:32px;
+    }
+    .app{
+      width:760px;max-width:95vw;background:linear-gradient(180deg,var(--panel), rgba(15,11,21,0.9));
+      border-radius:18px;padding:22px;box-shadow:0 10px 40px rgba(2,1,5,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{display:flex;gap:14px;align-items:center}
+    .logo{
+      width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#100213;font-size:18px;box-shadow:0 6px 18px rgba(124,77,255,0.14)
+    }
+    h1{margin:0;font-size:20px;letter-spacing:1px}
+    .subtitle{color:var(--muted);font-size:12px}
+
+    .controls{display:flex;gap:10px;align-items:center}
+    button.btn{background:var(--glass);border:1px solid rgba(255,255,255,0.03);color:var(--accent-2);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+    button.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+
+    .board{display:grid;grid-template-rows:repeat(6, var(--tile-size));gap:10px;justify-content:center;margin:18px 0}
+    .row{display:grid;grid-template-columns:repeat(5, var(--tile-size));gap:10px}
+    .tile{
+      width:var(--tile-size);height:var(--tile-size);border-radius:8px;background:var(--glass-2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:transparent;border:2px solid rgba(255,255,255,0.04);text-transform:uppercase;box-shadow:0 6px 14px rgba(2,1,5,0.5);
+      transform:translateY(0);transition:transform .18s ease, background .2s, border-color .2s, color .2s;
+    }
+    .tile.revealing{transition:transform .25s cubic-bezier(.2,.8,.2,1) .02s}
+    .tile.filled{color:#fff}
+    .tile.correct{background:var(--correct);border-color:rgba(0,0,0,0.25);color:#051014}
+    .tile.present{background:var(--present);border-color:rgba(0,0,0,0.25);color:#051014}
+    .tile.absent{background:var(--absent);border-color:rgba(0,0,0,0.35);color:#a6a3ad}
+
+    .keyboard{display:grid;gap:8px;grid-template-rows:repeat(3,44px);justify-items:center}
+    .kbd-row{display:flex;gap:8px;justify-content:center}
+    .key{height:44px;min-width:36px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:var(--glass);display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;color:var(--muted);user-select:none}
+    .key.wide{min-width:64px}
+    .key.correct{background:var(--correct);color:#051014}
+    .key.present{background:var(--present);color:#051014}
+    .key.absent{background:transparent;color:#4e4860;opacity:0.9}
+
+    .meta{display:flex;gap:12px;align-items:center;color:var(--muted);font-size:13px}
+    .hint{font-size:13px;color:var(--muted);margin-top:6px}
+
+    .msg{margin-top:12px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);color:var(--muted);font-weight:600}
+
+    footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px;color:var(--muted);font-size:12px}
+
+    /* small animation */
+    @keyframes pop {0%{transform:scale(.9)}50%{transform:scale(1.05)}100%{transform:scale(1)} }
+    .pop{animation:pop .18s ease}
+
+    /* responsive */
+    @media (max-width:640px){
+      :root{--tile-size:52px}
+      .app{padding:14px}
+      .logo{width:48px;height:48px}
+      h1{font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="CIA's CARNIVAL Wordle">
+    <header>
+      <div class="brand">
+        <div class="logo">C</div>
+        <div>
+          <h1> CIA's CARNIVAL</h1>
+          <div class="subtitle">A purple-black Wordle clone — guess the 5-letter word</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="newBtn">New Game</button>
+        <button class="btn ghost" id="helpBtn">How to</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="board" id="board" aria-hidden="false"></div>
+      <div class="meta">
+        <div id="rowInfo">Row 1 of 6</div>
+        <div class="hint">Press Enter to submit • Backspace to delete</div>
+      </div>
+
+      <div class="msg" id="message">Good luck — the carnival is watching.</div>
+
+      <div style="height:18px"></div>
+      <div class="keyboard" id="keyboard">
+        <div class="kbd-row" id="row1"></div>
+        <div class="kbd-row" id="row2"></div>
+        <div class="kbd-row" id="row3"></div>
+      </div>
+    </main>
+
+    <footer>
+      <div>Creator: Malaravan Vijayakumar </div>
+      <div><button class="btn ghost" id="shareBtn">Share</button></div>
+    </footer>
+  </div>
+
+  <script>
+    // --- tiny word list for demo; you can swap with a full word list ---
+    const WORDS = ["ABOUT","ALERT","ANGLE","BERRY","BLACK","BRAIN","BRING","CHAIR","CLEAN","CLOSE","COAST","CRAZY","DAISY","DELTA","DRIVE","ELITE","ENTRY","FABLE","GLASS","GHOST","GRAIN","GRACE","HONEY","HUMAN","IDEAL","IMAGE","JOKER","JUDGE","LIGHT","LOVER","MAJOR","MINOR","MONEY","MOUNT","NINJA","NOISE","NORTH","OCEAN","OFFER","POINT","PRIDE","QUIET","QUICK","RIVER","ROUGE","ROUND","SILKY","SIXTH","SMART","SWEET","TIGER","TRAIN","UNITY","URBAN","VIVID","VOICE","WATER","WRITE","YOUNG","ZEBRA"];
+
+    // also a set of allowed guesses (for simplicity reuse WORDS + a few common) - normally you'd load a large dictionary
+    const VALID = new Set(WORDS.concat(["SOUND","START","GREAT","APPLE","HOUSE","PURSE","CIDER","CRANE","SLATE"]).map(w=>w.toUpperCase()));
+
+    const boardEl = document.getElementById('board');
+    const messageEl = document.getElementById('message');
+    const rowInfoEl = document.getElementById('rowInfo');
+    const newBtn = document.getElementById('newBtn');
+    const helpBtn = document.getElementById('helpBtn');
+    const shareBtn = document.getElementById('shareBtn');
+
+    const KEYS = ["QWERTYUIOP","ASDFGHJKL","ZXCVBNM"];
+
+    let target = '';
+    let grid = Array.from({length:6}, ()=>Array(5).fill(''));
+    let row = 0, col = 0;
+    let finished = false;
+    let keyboardState = {}; // letter -> status
+
+    function pickWord(){
+      target = WORDS[Math.floor(Math.random()*WORDS.length)].toUpperCase();
+      console.log('target:',target);
+    }
+
+    // build board
+    function buildBoard(){
+      boardEl.innerHTML = '';
+      for(let r=0;r<6;r++){
+        const rowEl = document.createElement('div');rowEl.className='row';
+        for(let c=0;c<5;c++){
+          const t = document.createElement('div');t.className='tile';t.setAttribute('data-row',r);t.setAttribute('data-col',c);
+          rowEl.appendChild(t);
+        }
+        boardEl.appendChild(rowEl);
+      }
+      updateRowInfo();
+    }
+
+    function buildKeyboard(){
+      document.getElementById('row1').innerHTML='';
+      document.getElementById('row2').innerHTML='';
+      document.getElementById('row3').innerHTML='';
+      KEYS.forEach((k, i)=>{
+        const rowId = 'row'+(i+1);
+        for(const ch of k){
+          const btn = document.createElement('div');btn.className='key';btn.textContent=ch;btn.setAttribute('data-key',ch);
+          btn.addEventListener('click', ()=>onKey(ch));
+          document.getElementById(rowId).appendChild(btn);
+        }
+      });
+      // add enter/back on row3
+      const row3 = document.getElementById('row3');
+      const enter = document.createElement('div');enter.className='key wide';enter.textContent='Enter';enter.addEventListener('click', onEnter);
+      const back = document.createElement('div');back.className='key wide';back.textContent='⌫';back.addEventListener('click', onBack);
+      row3.insertBefore(enter, row3.firstChild);
+      row3.appendChild(back);
+    }
+
+    function onKey(k){ if(finished) return; k=k.toUpperCase(); if(col<5){ grid[row][col]=k; renderTile(row,col); col++; }}
+    function onBack(){ if(finished) return; if(col>0){ col--; grid[row][col]=''; renderTile(row,col); const tile = getTileEl(row,col); tile.classList.add('pop'); setTimeout(()=>tile.classList.remove('pop'),160);} }
+
+function onEnter(){
+  if(finished) return;
+  if(col<5){
+    setMessage('Not enough letters');
+    shakeRow(row);
+    return;
+  }
+  const guess = grid[row].join('');
+  // ⬇️ Removed the VALID.has check
+  revealRow(row, guess);
+}
+
+    function revealRow(r, guess){
+      const tiles = Array.from(document.querySelectorAll(`.tile[data-row='${r}']`));
+      // compute marking
+      const targetArr = target.split('');
+      const result = Array(5).fill('absent');
+      // first pass for correct
+      for(let i=0;i<5;i++){
+        if(guess[i]===target[i]){ result[i]='correct'; targetArr[i]=null; }
+      }
+      // second pass for present
+      for(let i=0;i<5;i++){
+        if(result[i] === 'correct') continue;
+        const idx = targetArr.indexOf(guess[i]);
+        if(idx!==-1){ result[i]='present'; targetArr[idx]=null; }
+      }
+
+      // reveal with animation delay
+      tiles.forEach((t, i)=>{
+        t.classList.add('revealing');
+        setTimeout(()=>{
+          t.classList.add(result[i]);
+          t.classList.add('filled');
+          t.textContent = guess[i];
+          t.classList.remove('revealing');
+          // update keyboard
+          updateKey(guess[i], result[i]);
+        }, i*220);
+      });
+
+      setTimeout(()=>{
+        if(result.every(r=>r==='correct')){
+          setMessage(`You guessed it — ${target} — well played!`);
+          finished = true;
+        } else if(row===5){
+          setMessage(`Out of tries. The word was ${target}.`);
+          finished = true;
+        } else {
+          row++; col=0; setMessage(''); updateRowInfo();
+        }
+      }, 5*220 + 200);
+    }
+
+    function updateKey(letter, result){
+      const btn = document.querySelector(`.key[data-key='${letter}']`);
+      const prev = keyboardState[letter];
+      // preserve stronger state: correct > present > absent
+      const rank = s=> s==='correct'?3: s==='present'?2:1;
+      if(prev && rank(prev) >= rank(result)) return;
+      keyboardState[letter]=result;
+      if(btn){ btn.classList.remove('correct','present','absent'); btn.classList.add(result); }
+    }
+
+    function renderTile(r,c){
+      const t = getTileEl(r,c);
+      const ch = grid[r][c];
+      t.textContent = ch ? ch : '';
+      if(ch) t.classList.add('filled'); else t.classList.remove('filled');
+      t.classList.remove('correct','present','absent');
+    }
+
+    function getTileEl(r,c){ return document.querySelector(`.tile[data-row='${r}'][data-col='${c}']`); }
+
+    function updateRowInfo(){ rowInfoEl.textContent = `Row ${row+1} of 6`; }
+
+    function setMessage(txt){ messageEl.textContent = txt; }
+
+    function shakeRow(r){
+      const rowEl = document.querySelectorAll('.row')[r];
+      rowEl.animate([{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:300,iterations:1});
+    }
+
+    // keyboard events
+    window.addEventListener('keydown',(e)=>{
+      if(finished) return;
+      if(e.key === 'Enter'){ onEnter(); e.preventDefault(); }
+      else if(e.key === 'Backspace'){ onBack(); }
+      else if(/^[a-zA-Z]$/.test(e.key)) { onKey(e.key.toUpperCase()); }
+    });
+
+   
+
+    newBtn.addEventListener('click', startGame);
+    helpBtn.addEventListener('click', ()=>{
+      alert('How to play:\n\nGuess the 5-letter word in 6 tries.\nAfter each guess, tiles will show:\n\nGreen = correct letter in correct spot.\nYellow = letter is in the word but wrong spot.\nGray = letter not in the word.\n\nUse your logic and pattern recognition. Good luck!');
+    });
+
+    shareBtn.addEventListener('click', ()=>{
+      // create simple share text
+      let out = `CIA's CARNIVAL — Wordle\n`;
+      for(let r=0;r<=row;r++){
+        let line='';
+        for(let c=0;c<5;c++){
+          const tile = getTileEl(r,c);
+          if(tile.classList.contains('correct')) line += '🟩';
+          else if(tile.classList.contains('present')) line += '🟨';
+          else if(tile.classList.contains('absent')) line += '⬛';
+          else line += '⬜';
+        }
+        out += line + '\n';
+      }
+      if(navigator.clipboard){ navigator.clipboard.writeText(out).then(()=>{ setMessage('Result copied to clipboard'); }, ()=>{ setMessage('Couldnt copy — permission denied'); }); }
+      else{ setMessage('Clipboard unavailable'); }
+    });
+
+    function startGame(){
+      grid = Array.from({length:6}, ()=>Array(5).fill(''));
+      row = 0; col = 0; finished=false; keyboardState={}; setMessage(''); pickWord(); buildBoard(); buildKeyboard();
+      // clear any leftover classes
+      document.querySelectorAll('.tile').forEach(t=>{ t.className='tile'; t.textContent=''; });
+      document.querySelectorAll('.key').forEach(k=>{k.classList.remove('correct','present','absent');});
+      updateRowInfo();
+    }
+
+    // init
+    startGame();
+
+  </script>
+</body>
+</html>
